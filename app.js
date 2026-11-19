@@ -296,10 +296,10 @@ function viewWeek() {
   ensureMenus([addDays(todayIso(), 7), addDays(todayIso(), 14)]);
   const next5 = schoolDaysFrom(todayIso(), 5);
   ensureMenus(next5);
-  const today = todayIso(), nextDay = nextSchoolDay(addDays(today, 1));
-  // Last school day before a weekend or break: offer a peek at the next school day and a checklist.
-  const beforeGap = isSchoolDay(today) && nextDay !== addDays(today, 1);
-  const showPeek = beforeGap && mon === monday(today);
+  // When the week's last school day (or the peek itself) is open, add a tab for the next school day after the gap.
+  const lastSchool = [...days].reverse().find(isSchoolDay);
+  const afterGap = lastSchool && nextSchoolDay(addDays(lastSchool, 1));
+  const showPeek = lastSchool && (ui.date === lastSchool || (ui.peekFrom === mon && ui.date === afterGap));
   const upcoming = next5.filter(d => s.menus[d] && !s.served[d]);
   const need = {}; const missing = new Set();
   for (const d of upcoming) { const p = plan(d, { forecast: true }); p.missing.forEach(x => missing.add(x)); for (const [k, v] of Object.entries(p.need)) need[k] = (need[k] || 0) + v; }
@@ -326,9 +326,8 @@ function viewWeek() {
     ${todayButton()}
     ${menuNote(mon)}
   </div>
-  ${beforeGap && mon === monday(today) ? prepChecklist(today, nextDay) : ''}
   <div class="folders">
-    <div class="tabs" role="tablist" aria-label="Days of the week">${days.map(d => dayTab(d)).join('')}${showPeek ? dayTab(nextDay, mon) : ''}</div>
+    <div class="tabs" role="tablist" aria-label="Days of the week">${days.map(d => dayTab(d)).join('')}${showPeek ? dayTab(afterGap, mon) : ''}</div>
     ${dayFolder(ui.date)}
   </div>
 
@@ -350,12 +349,18 @@ function viewWeek() {
   </div>`;
 }
 
-function prepChecklist(today, next) {
+// Prep for the next school day, shown inside the open day's folder.
+// Before a weekend or break it's open and highlighted; on other days it's one line you can expand.
+function prepChecklist(d) {
+  if (!isSchoolDay(d) || d < todayIso()) return '';
+  const next = nextSchoolDay(addDays(d, 1));
+  ensureMenus([next]);
   const s = S(), m = s.menus[next], checks = (s.prepChecks || {})[next] || {};
-  const gap = Math.round((parseIso(next) - parseIso(today)) / 86400000);
-  const title = gap > 3 ? 'Before the break' : 'Before the weekend';
+  const gapDays = Math.round((parseIso(next) - parseIso(d)) / 86400000);
+  const big = gapDays > 1;
+  const title = gapDays > 3 ? 'Before the break' : big ? 'Before the weekend' : 'Prep for tomorrow';
   const when = fmtDay(next, { weekday: 'long', month: 'short', day: 'numeric' });
-  if (!m) return `<section class="panel prep"><h3>${title}</h3><p class="muted">${when}'s menu isn't on MealViewer yet. Check again later today.</p></section>`;
+  if (!m) return `<div class="prep${big ? ' big' : ''}"><div class="prep-head"><h3>${title}</h3></div><p class="muted small">${when}'s menu isn't on MealViewer yet. Check again later.</p></div>`;
   const p = plan(next, { forecast: true });
   const rows = Object.entries(p.need).map(([id, q]) => ({ it: invById(id), q })).filter(x => x.it);
   const thaw = rows.filter(x => x.it.loc === 'Freezer');
@@ -367,11 +372,14 @@ function prepChecklist(today, next) {
     ...p.missing.map(n => ({ key: 'recipe:' + norm(n), html: `<b>${esc(n)}</b> has no recipe, so it isn't in these amounts.` })),
   ];
   const left = items.filter(i => !checks[i.key]).length;
-  return `<section class="panel prep">
-    <div class="prep-head"><h3>${title}: get ready for ${when}</h3>${items.length && !left ? '<span class="pill ok">All set</span>' : ''}</div>
-    <p class="small muted">${emo(entreeOf(m))} ${esc(entreeOf(m))}. Amounts use a typical day from Settings, since ${when}'s sheets come in that morning.</p>
-    ${items.length ? `<ul class="checklist">${items.map(i => `<li><button class="check${checks[i.key] ? ' done' : ''}" data-act="prep-check" data-day="${next}" data-key="${esc(i.key)}" aria-pressed="${!!checks[i.key]}"><span class="box" aria-hidden="true">${checks[i.key] ? '✓' : ''}</span><span>${i.html}</span></button></li>`).join('')}</ul>` : '<p class="ok-t">Nothing to thaw and enough stock. You\'re set.</p>'}
-  </section>`;
+  const open = big || ui.prepOpen === d;
+  const summary = !items.length ? 'nothing to do' : left ? `${left} to do` : 'all set';
+  return `<div class="prep${big ? ' big' : ''}">
+    <div class="prep-head"><h3>${title}: get ready for ${when}</h3>${items.length && !left ? '<span class="pill ok">All set</span>' : ''}
+      ${big ? '' : `<button class="link small" data-act="prep-toggle" data-day="${d}" aria-expanded="${open}">${open ? 'Hide' : `Show (${summary})`}</button>`}</div>
+    ${open ? `<p class="small muted">${emo(entreeOf(m))} ${esc(entreeOf(m))}. Amounts use a typical day from Settings, since ${when}'s sheets come in that morning.</p>
+    ${items.length ? `<ul class="checklist">${items.map(i => `<li><button class="check${checks[i.key] ? ' done' : ''}" data-act="prep-check" data-day="${next}" data-key="${esc(i.key)}" aria-pressed="${!!checks[i.key]}"><span class="box" aria-hidden="true">${checks[i.key] ? '✓' : ''}</span><span>${i.html}</span></button></li>`).join('')}</ul>` : '<p class="ok-t">Nothing to thaw and enough stock. You\'re set.</p>'}` : ''}
+  </div>`;
 }
 
 function dayStatus(d) {
@@ -425,6 +433,7 @@ function dayFolder(d) {
     ${m ? `<div><h4>Lunch</h4><ul class="menu-list">${list(m.lunch.filter(i => i.type !== 'ENTREES'))}</ul></div>
     <div><h4>Breakfast</h4><ul class="menu-list">${list(m.breakfast)}</ul></div>
     <div><h4>Tips</h4>${tips.length ? `<ul class="menu-list">${tips.map(t => `<li><button class="link" data-act="goto" data-tab="plan" data-date="${d}">${esc(t.title)}</button></li>`).join('')}</ul>` : '<p class="muted small">No tips for this menu.</p>'}</div>` : ''}
+    ${prepChecklist(d)}
   </section>`;
 }
 
@@ -922,6 +931,7 @@ const actions = {
   goto: el => { if (el.dataset.date) ui.date = el.dataset.date; ui.tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
   'pick-day': el => { ui.date = nextWeekday(el.dataset.date); ui.peekFrom = el.dataset.peek || null; render(); },
   'go-today': () => { ui.date = nextSchoolDay(todayIso()); ui.peekFrom = null; render(); },
+  'prep-toggle': el => { ui.prepOpen = ui.prepOpen === el.dataset.day ? null : el.dataset.day; render(); },
   'prep-check': el => { const s = S(), c = ((s.prepChecks ||= {})[el.dataset.day] ||= {}); c[el.dataset.key] = !c[el.dataset.key]; save(); render(); },
   'reset-extra': el => { delete S().extrasOverride[ui.date][el.dataset.key]; save(); render(); },
   'mark-served': () => {

@@ -114,10 +114,11 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px max(16px, env(safe-area-
 .ftab.on.other .tab-num { color: var(--other); }
 .other-tag { font: 700 .62rem var(--font-body); text-transform: uppercase; letter-spacing: .1em; color: var(--other-ink); background: var(--other); padding: 1px 7px; border-radius: 4px; }
 
-/* Before the weekend checklist */
-.prep { border-color: var(--warn); background: var(--warn-soft); }
+/* Prep for the next school day, at the bottom of the open folder */
+.prep { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 14px; }
+.prep.big { border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 8px; padding: 14px; }
 .prep-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.prep-head h3 { margin: 0; }
+.prep-head h3 { margin: 0; font-size: 1.1rem; }
 .prep > p { margin: 4px 0 10px; }
 .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .check { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--ink); cursor: pointer; }
