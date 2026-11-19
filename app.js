@@ -312,7 +312,10 @@ function viewWeek() {
     ${todayButton()}
     ${menuNote(mon)}
   </div>
-  <div class="days">${days.map(d => d === ui.date ? dayCardOpen(d) : dayCardSmall(d)).join('')}</div>
+  <div class="folders">
+    <div class="tabs" role="tablist" aria-label="Days of the week">${days.map(dayTab).join('')}</div>
+    ${dayFolder(ui.date)}
+  </div>
 
   <div class="two">
     <section class="panel">
@@ -342,36 +345,37 @@ function dayStatus(d) {
 const entreeOf = m => m ? m.lunch.filter(i => i.type === 'ENTREES').map(i => i.name).join(' + ') : '';
 const todayTag = d => d === todayIso() ? '<span class="today-tag">Today</span>' : '';
 
-function dayCardSmall(d) {
-  const m = S().menus[d], entree = entreeOf(m);
-  return `<article class="day small${d === todayIso() ? ' today' : ''}" data-act="pick-day" data-date="${d}" role="button" tabindex="0" aria-label="Open ${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}">
-    <header><span class="dname">${fmtDay(d, { weekday: 'short' })} ${parseIso(d).getDate()}</span>${todayTag(d)}</header>
-    ${m ? `<div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p>` : '<p class="muted entree">No menu yet</p>'}
-    <div class="status">${dayStatus(d)}</div>
-  </article>`;
+function dayTab(d) {
+  const m = S().menus[d], entree = entreeOf(m), on = d === ui.date;
+  return `<div class="ftab${on ? ' on' : ''}${d === todayIso() ? ' today' : ''}" data-act="pick-day" data-date="${d}" role="tab" tabindex="0" aria-selected="${on}" aria-label="${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}${entree ? ': ' + esc(entree) : ''}">
+    <span class="tab-emoji" aria-hidden="true">${m ? dishEmojis(entree) : '·'}</span>
+    <span class="tab-text">
+      <span class="tab-day">${fmtDay(d, { weekday: 'short' })} <b>${parseIso(d).getDate()}</b>${todayTag(d)}</span>
+      <span class="tab-dish">${m ? esc(entree || '—') : 'No menu yet'}</span>
+    </span>
+    <span class="tab-num" aria-hidden="true">${parseIso(d).getDate()}</span>
+  </div>`;
 }
 
-function dayCardOpen(d) {
+function dayFolder(d) {
   const s = S(), m = s.menus[d], p = m ? plan(d) : null, entree = entreeOf(m), tips = m ? tipsFor(d) : [];
-  const list = items => items.map(i => `<li>${emo(i.name)} ${esc(i.name)}</li>`).join('');
-  const sides = m ? m.lunch.filter(i => i.type !== 'ENTREES') : [];
-  return `<article class="day open${d === todayIso() ? ' today' : ''}">
-    <header><span class="dname">${fmtDay(d, { weekday: 'long' })}</span><span class="ddate">${fmtDay(d, { month: 'short', day: 'numeric' })}</span>${todayTag(d)}</header>
-    ${m ? `<div class="openmain"><div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p></div>
-      ${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}
-      <div class="menus">
-        <div><h4>Lunch</h4><ul class="menu-list">${list(sides)}</ul></div>
-        <div><h4>Breakfast</h4><ul class="menu-list">${list(m.breakfast)}</ul></div>
-      </div>` : '<p class="muted">No menu yet</p>'}
-    <dl class="kv">
-      <div><dt>Sheets</dt><dd>${sheetsIn(d)}/${s.classes.length}</dd></div>
-      <div><dt>Lunches</dt><dd>${p && p.lunchTotal ? `${p.lunchTotal} <small>+${p.lunchMake - p.lunchTotal}</small>` : '—'}</dd></div>
-      <div><dt>Breakfast</dt><dd>${p && p.bCount ? p.bCount : '—'}</dd></div>
-    </dl>
-    <div class="status">${dayStatus(d)}${p && p.missing.length ? `<span class="pill warn">${p.missing.length} need recipe</span>` : ''}</div>
-    ${tips.length ? `<div class="daytips"><h4>Tips</h4><ul>${tips.map(t => `<li><button class="link" data-act="goto" data-tab="plan" data-date="${d}">${esc(t.title)}</button></li>`).join('')}</ul></div>` : ''}
-    <div class="actions"><button class="btn" data-act="goto" data-tab="counts" data-date="${d}">Counts</button><button class="btn ghost" data-act="goto" data-tab="plan" data-date="${d}">Production</button></div>
-  </article>`;
+  const list = items => items.length ? items.map(i => `<li>${emo(i.name)} ${esc(i.name)}</li>`).join('') : '<li class="muted">—</li>';
+  return `<section class="folder${d === todayIso() ? ' today' : ''}" role="tabpanel">
+    <div class="f-main">
+      <p class="f-date">${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })} ${todayTag(d)}</p>
+      ${m ? `<div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p>${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}` : '<p class="muted">No menu yet for this day.</p>'}
+      <dl class="kv">
+        <div><dt>Sheets</dt><dd>${sheetsIn(d)}/${s.classes.length}</dd></div>
+        <div><dt>Lunches</dt><dd>${p && p.lunchTotal ? `${p.lunchTotal} <small>+${p.lunchMake - p.lunchTotal}</small>` : '—'}</dd></div>
+        <div><dt>Breakfast</dt><dd>${p && p.bCount ? p.bCount : '—'}</dd></div>
+      </dl>
+      <div class="status">${dayStatus(d)}${p && p.missing.length ? `<span class="pill warn">${p.missing.length} need recipe</span>` : ''}</div>
+      <div class="actions"><button class="btn" data-act="goto" data-tab="counts" data-date="${d}">Counts</button><button class="btn ghost" data-act="goto" data-tab="plan" data-date="${d}">Production</button></div>
+    </div>
+    ${m ? `<div><h4>Lunch</h4><ul class="menu-list">${list(m.lunch.filter(i => i.type !== 'ENTREES'))}</ul></div>
+    <div><h4>Breakfast</h4><ul class="menu-list">${list(m.breakfast)}</ul></div>
+    <div><h4>Tips</h4>${tips.length ? `<ul class="menu-list">${tips.map(t => `<li><button class="link" data-act="goto" data-tab="plan" data-date="${d}">${esc(t.title)}</button></li>`).join('')}</ul>` : '<p class="muted small">No tips for this menu.</p>'}</div>` : ''}
+  </section>`;
 }
 
 function viewCounts() {
