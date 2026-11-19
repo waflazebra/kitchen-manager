@@ -131,6 +131,12 @@ button.pill { cursor: pointer; }
 
 #toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; z-index: 20; max-width: calc(100% - 32px); }
 
+/* dish emoji */
+.dish-emoji { font-size: 2.4rem; line-height: 1; letter-spacing: .1em; }
+.day .dish-emoji { transition: transform .2s ease; transform-origin: 50% 80%; }
+.day:hover .dish-emoji { transform: rotate(-8deg) scale(1.08); }
+.emo { font-style: normal; }
+
 /* tips */
 .pill.tip { background: var(--accent-soft); color: var(--accent); }
 .panel.tips { border-color: var(--accent); background: var(--accent-soft); }

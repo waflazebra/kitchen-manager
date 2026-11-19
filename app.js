@@ -308,7 +308,7 @@ function viewWeek() {
       const entree = m ? m.lunch.filter(i => i.type === 'ENTREES').map(i => i.name).join(' + ') : '';
       return `<article class="day${d === todayIso() ? ' today' : ''}">
         <header><span class="dname">${fmtDay(d, { weekday: 'long' })}</span><span class="ddate">${fmtDay(d, { month: 'short', day: 'numeric' })}</span></header>
-        ${m ? `<p class="entree">${esc(entree || '—')}</p>${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}` : '<p class="muted">No menu yet</p>'}
+        ${m ? `<div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p>${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}` : '<p class="muted">No menu yet</p>'}
         <dl class="kv">
           <div><dt>Sheets</dt><dd>${inn}/${s.classes.length}</dd></div>
           <div><dt>Lunches</dt><dd>${p && p.lunchTotal ? `${p.lunchTotal} <small>+${p.lunchMake - p.lunchTotal}</small>` : '—'}</dd></div>
@@ -352,7 +352,7 @@ function viewCounts() {
   <p class="muted">Type the circled number from each column. Leave a cell empty for zero. Totals update as you type. Tab moves across a row, the same way you read a sheet.</p>
   <div class="scroll">
   <table class="tbl grid">
-    <thead><tr><th>Class</th>${opts.map(o => `<th class="n">${esc(o.label)}${o.key === 'main' ? `<br><small>${esc(o.dish)}</small>` : ''}</th>`).join('')}<th class="n">Row</th></tr></thead>
+    <thead><tr><th>Class</th>${opts.map(o => `<th class="n">${emo(o.dish)} ${esc(o.label)}${o.key === 'main' ? `<br><small>${esc(o.dish)}</small>` : ''}</th>`).join('')}<th class="n">Row</th></tr></thead>
     <tbody>
       ${s.classes.map(cl => { const row = c.classes[cl.id] || {}; return `<tr class="${Object.keys(row).length ? 'in' : ''}"><th>Gr ${esc(cl.grade)} · ${esc(cl.teacher)}</th>${opts.map(o => cell(cl.id, o.key, row[o.key])).join('')}<td class="n" id="rowtot-${cl.id}">${sum(Object.values(row).map(Number)) || ''}</td></tr>`; }).join('')}
       <tr class="staff"><th>Teacher / staff requests</th>${opts.map(o => cell('staff', o.key, c.staff[o.key])).join('')}<td class="n" id="rowtot-staff">${sum(Object.values(c.staff).map(Number)) || ''}</td></tr>
@@ -402,7 +402,7 @@ function viewPlan() {
     <div class="scroll"><table class="tbl">
       <thead><tr><th>Choice</th><th class="n">Ordered</th><th class="n">Extras</th><th class="n">Make</th><th>Why this many extras</th></tr></thead>
       <tbody>${p.rows.map(r => `<tr>
-        <td><b>${esc(r.label)}</b>${r.key === 'main' ? `<br><small>${esc(r.dish)}</small>` : ''}</td>
+        <td>${emo(r.dish)} <b>${esc(r.label)}</b>${r.key === 'main' ? `<br><small>${esc(r.dish)}</small>` : ''}</td>
         <td class="n">${r.total}</td>
         <td class="n"><input type="number" min="0" class="sm" data-extra="${esc(r.key)}" value="${r.extra}" aria-label="Extras for ${esc(r.label)}">${r.overridden ? `<button class="link small" data-act="reset-extra" data-key="${esc(r.key)}">use ${r.suggest}</button>` : ''}</td>
         <td class="n big">${r.make}</td>
@@ -417,7 +417,7 @@ function viewPlan() {
     <section class="panel">
       <h3>Prep sheet</h3>
       <table class="tbl"><thead><tr><th>Item</th><th class="n">Servings</th><th>Portion</th></tr></thead><tbody>
-      ${['Breakfast', 'Lunch', 'Alternate'].map(meal => { const its = p.items.filter(i => i.meal === meal && i.servings); return its.length ? `<tr class="group"><th colspan="3">${meal}</th></tr>` + its.map(i => `<tr><td>${esc(i.name)} ${s.recipes[norm(i.name)] ? '' : `<button class="pill warn" data-act="edit-recipe" data-name="${esc(i.name)}">needs recipe</button>`}</td><td class="n">${i.servings}</td><td class="small">${esc(i.portion)}</td></tr>`).join('') : ''; }).join('')}
+      ${['Breakfast', 'Lunch', 'Alternate'].map(meal => { const its = p.items.filter(i => i.meal === meal && i.servings); return its.length ? `<tr class="group"><th colspan="3">${meal}</th></tr>` + its.map(i => `<tr><td>${emo(i.name)} ${esc(i.name)} ${s.recipes[norm(i.name)] ? '' : `<button class="pill warn" data-act="edit-recipe" data-name="${esc(i.name)}">needs recipe</button>`}</td><td class="n">${i.servings}</td><td class="small">${esc(i.portion)}</td></tr>`).join('') : ''; }).join('')}
       </tbody></table>
       <p class="small muted">Milk split ${100 - s.settings.chocShare}% plain / ${s.settings.chocShare}% chocolate. Fruit, vegetables and milk go to every lunch, including the alternates.</p>
     </section>
@@ -435,11 +435,11 @@ function viewPlan() {
     <h3>After service</h3>
     ${served ? `<p><span class="pill ok">Served</span> Ingredients were subtracted from inventory on ${new Date(served.at).toLocaleString()}.</p>
       <table class="tbl"><thead><tr><th>Choice</th><th class="n">Made</th><th class="n">Left over</th><th class="n">Ran short by</th></tr></thead><tbody>
-      ${served.rows.map(r => `<tr><td>${esc(r.dish)}</td><td class="n">${r.made}</td><td class="n">${r.leftover}</td><td class="n">${r.short}</td></tr>`).join('')}</tbody></table>
+      ${served.rows.map(r => `<tr><td>${emo(r.dish)} ${esc(r.dish)}</td><td class="n">${r.made}</td><td class="n">${r.leftover}</td><td class="n">${r.short}</td></tr>`).join('')}</tbody></table>
       <button class="btn ghost" data-act="undo-served">Undo and put stock back</button>` : `
       <p class="small muted">Write down leftovers (or how many more kids wanted it). This is what the extras suggestion learns from. Marking served subtracts the pull list from inventory.</p>
       <table class="tbl"><thead><tr><th>Choice</th><th class="n">Made</th><th class="n">Left over</th><th class="n">Ran short by</th></tr></thead><tbody>
-      ${p.rows.filter(r => r.make).map(r => `<tr><td>${esc(r.dish)}</td><td class="n">${r.make}</td><td class="n"><input type="number" min="0" class="sm" id="left-${esc(r.key)}" data-left="${esc(r.key)}" value="0"></td><td class="n"><input type="number" min="0" class="sm" id="short-${esc(r.key)}" data-short="${esc(r.key)}" value="0"></td></tr>`).join('')}
+      ${p.rows.filter(r => r.make).map(r => `<tr><td>${emo(r.dish)} ${esc(r.dish)}</td><td class="n">${r.make}</td><td class="n"><input type="number" min="0" class="sm" id="left-${esc(r.key)}" data-left="${esc(r.key)}" value="0"></td><td class="n"><input type="number" min="0" class="sm" id="short-${esc(r.key)}" data-short="${esc(r.key)}" value="0"></td></tr>`).join('')}
       </tbody></table>
       <button class="btn" data-act="mark-served" ${p.lunchMake || p.bMake ? '' : 'disabled'}>Mark served and subtract from inventory</button>`}
   </section>`;
@@ -564,7 +564,7 @@ function viewRecipes() {
     <thead><tr><th>Dish</th><th>Meal</th><th>Next served</th><th>Recipe</th></tr></thead>
     <tbody>${dishes.sort((a, b) => (!!s.recipes[norm(a.name)] - !!s.recipes[norm(b.name)]) || a.name.localeCompare(b.name)).map(d => {
       const r = s.recipes[norm(d.name)], next = d.dates.find(x => x >= today);
-      return `<tr><td>${esc(d.name)}</td><td class="small">${esc(d.meal)}</td><td class="small">${d.meal === 'Alternate' ? 'Daily' : next ? fmtDay(next) : '—'}</td>
+      return `<tr><td>${emo(d.name)} ${esc(d.name)}</td><td class="small">${esc(d.meal)}</td><td class="small">${d.meal === 'Alternate' ? 'Daily' : next ? fmtDay(next) : '—'}</td>
         <td>${r ? `<button class="link" data-act="edit-recipe" data-name="${esc(d.name)}">${r.ingredients.map(g => esc(invById(g.inv)?.name || g.inv)).join(', ') || 'Edit'}</button>` : `<button class="pill warn" data-act="edit-recipe" data-name="${esc(d.name)}">Add recipe</button>`}</td></tr>`;
     }).join('')}</tbody></table></div>`;
 }
@@ -637,6 +637,36 @@ function viewSettings() {
   </section>`;
 }
 
+/* ---------- dish emoji ---------- */
+// First match wins, so specific names come before general ones.
+const DISH_EMOJI = [
+  ['pizza', '🍕'], ['burger', '🍔'], ['patty', '🍔'], ['hot dog', '🌭'], ['sausage', '🌭'],
+  ['grilled cheese', '🥪'], ['toasted cheese', '🥪'], ['sunbutter', '🥪'], ['sandwich', '🥪'], ['wrap', '🌯'],
+  ['taco', '🌮'], ['burrito', '🌯'], ['nacho', '🌮'], ['quesadilla', '🌮'],
+  ['tomato soup', '🍅'], ['soup', '🥣'], ['chili', '🥣'], ['stew', '🥣'],
+  ['lasagna', '🍝'], ['spaghetti', '🍝'], ['pasta', '🍝'], ['ziti', '🍝'], ['macaroni', '🍝'], ['mac ', '🍝'], ['ravioli', '🍝'],
+  ['waffle', '🧇'], ['pancake', '🥞'], ['french toast', '🍞'],
+  ['nugget', '🍗'], ['tender', '🍗'], ['popcorn chicken', '🍗'], ['fish', '🐟'], [' egg', '🍳'],
+  ['dumpling', '🥟'], [' rice', '🍚'], ['curry', '🍛'],
+  ['salad', '🥗'], ['caesar', '🥗'], ['chicken', '🍗'],
+  ['tater tot', '🍟'], ['tots', '🍟'], ['fries', '🍟'], ['potato', '🥔'],
+  ['bagel', '🥯'], ['dinner roll', '🍞'], ['roll', '🍞'], ['bread', '🍞'], ['muffin', '🧁'],
+  ['cinnamon toast crunch', '🥣'], ['cheerios', '🥣'], ['corn flakes', '🥣'], ['coco puff', '🥣'], ['cereal', '🥣'], ['granola', '🥣'],
+  ['yogurt', '🍨'], ['string cheese', '🧀'], ['cheese', '🧀'],
+  ['chocolate milk', '🍫'], ['milk', '🥛'],
+  ['kale', '🥬'], ['celery', '🥬'], ['lettuce', '🥬'], ['spinach', '🥬'], ['broccoli', '🥦'], ['california blend', '🥦'], ['veggie', '🥦'],
+  ['carrot', '🥕'], ['corn', '🌽'], ['chick pea', '🫘'], ['chickpea', '🫘'], ['bean', '🫘'], ['cucumber', '🥒'], ['pepper', '🫑'],
+  ['apple', '🍎'], ['pear', '🍐'], ['orange', '🍊'], ['peach', '🍑'], ['banana', '🍌'], ['grape', '🍇'], ['strawberr', '🍓'],
+  ['melon', '🍉'], ['pineapple', '🍍'], ['cherr', '🍒'], ['mixed fruit', '🍒'], ['fruit', '🍏'],
+];
+function dishEmojis(name) {
+  return String(name || '').split(' + ').map(part => {
+    const n = ' ' + norm(part) + ' ';
+    return (DISH_EMOJI.find(([k]) => n.includes(k)) || [, '🍽️'])[1];
+  }).join('');
+}
+const emo = name => `<span class="emo" aria-hidden="true">${dishEmojis(name)}</span>`;
+
 /* ---------- kitchen tips ---------- */
 // Starter tips come from tips.js; each kitchen can edit, hide or add its own (stored per school).
 const tipStore = () => (S().tips ||= { custom: [], edits: {}, hidden: {} });
@@ -666,7 +696,7 @@ function tipsPanel(date) {
   return `<section class="panel tips">
     <h3>Heads-up for today</h3>
     ${tips.map(t => `<div class="tipitem">
-      <p class="tiphead"><b>${esc(t.title)}</b> <span class="small muted">· ${esc(t.dish)}</span></p>
+      <p class="tiphead"><b>${esc(t.title)}</b> <span class="small muted">· ${emo(t.dish)} ${esc(t.dish)}</span></p>
       <p>${esc(t.text)}</p>
       <div class="tipacts"><button class="link small" data-act="tip-edit" data-id="${esc(t.id)}">Edit</button>${t.starter ? `<button class="link small" data-act="tip-hide" data-id="${esc(t.id)}">Hide for our kitchen</button>` : ''}</div>
     </div>`).join('')}
