@@ -1,6 +1,6 @@
 /* Layout: sticky header with tabs, single content column up to 1180px; panels pair up in two columns on wide screens. */
 :root {
-  --bg: #f3f5f2; --surface: #ffffff; --tab: #e6ebe7; --ink: #1c2420; --muted: #5d6a63; --line: #d9dfda;
+  --bg: #f3f5f2; --surface: #ffffff; --tab: #e6ebe7; --other: #3f6fb0; --other-ink: #ffffff; --ink: #1c2420; --muted: #5d6a63; --line: #d9dfda;
   --accent: #1f6b57; --accent-ink: #ffffff; --accent-soft: #e2efe9;
   --ok: #1f7a43; --ok-soft: #e1f2e7; --warn: #8a5a00; --warn-soft: #fbefcf; --bad: #b3261e; --bad-soft: #fbe3e1;
   --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
@@ -8,11 +8,11 @@
   --r: 8px;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #121715; --surface: #1a211e; --tab: #222b27; --ink: #e6ece8; --muted: #9aa8a0; --line: #2d3732;
+  --bg: #121715; --surface: #1a211e; --tab: #222b27; --other: #82aee8; --other-ink: #0e1a2b; --ink: #e6ece8; --muted: #9aa8a0; --line: #2d3732;
   --accent: #5cc3a3; --accent-ink: #0d1a15; --accent-soft: #1d3a31;
   --ok: #6fd08f; --ok-soft: #173525; --warn: #f0c060; --warn-soft: #3a2f12; --bad: #ff8a80; --bad-soft: #3d1c1a; color-scheme: dark; } }
 :root[data-theme="dark"] {
-  --bg: #121715; --surface: #1a211e; --tab: #222b27; --ink: #e6ece8; --muted: #9aa8a0; --line: #2d3732;
+  --bg: #121715; --surface: #1a211e; --tab: #222b27; --other: #82aee8; --other-ink: #0e1a2b; --ink: #e6ece8; --muted: #9aa8a0; --line: #2d3732;
   --accent: #5cc3a3; --accent-ink: #0d1a15; --accent-soft: #1d3a31;
   --ok: #6fd08f; --ok-soft: #173525; --warn: #f0c060; --warn-soft: #3a2f12; --bad: #ff8a80; --bad-soft: #3d1c1a; color-scheme: dark; }
 
@@ -108,7 +108,11 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px max(16px, env(safe-area-
 .ftab.peek.on { border-style: solid; background: var(--surface); }
 .peek-lbl { font: 700 .62rem var(--font-body); text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
 .ftab.off .tab-dish { font-style: italic; }
-.folder.off { grid-template-columns: 1fr; border-color: var(--line); }
+.folder.off { grid-template-columns: 1fr; }
+/* The open day is blue when it isn't today, green when it is. */
+.ftab.on.other, .folder.other { border-color: var(--other); }
+.ftab.on.other .tab-num { color: var(--other); }
+.other-tag { font: 700 .62rem var(--font-body); text-transform: uppercase; letter-spacing: .1em; color: var(--other-ink); background: var(--other); padding: 1px 7px; border-radius: 4px; }
 
 /* Before the weekend checklist */
 .prep { border-color: var(--warn); background: var(--warn-soft); }

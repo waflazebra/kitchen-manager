@@ -383,10 +383,17 @@ function dayStatus(d) {
 }
 const entreeOf = m => m ? m.lunch.filter(i => i.type === 'ENTREES').map(i => i.name).join(' + ') : '';
 const todayTag = d => d === todayIso() ? '<span class="today-tag">Today</span>' : '';
+// For an open day that isn't today: "Tomorrow", "In 3 days", "2 days ago"…
+function notTodayTag(d) {
+  const n = Math.round((parseIso(d) - parseIso(todayIso())) / 86400000);
+  if (!n) return '';
+  const txt = n === 1 ? 'Tomorrow' : n === -1 ? 'Yesterday' : n > 0 ? `In ${n} days` : `${-n} days ago`;
+  return `<span class="other-tag">Not today · ${txt}</span>`;
+}
 
 function dayTab(d, peekFrom) {
   const m = S().menus[d], off = isDayOff(d), entree = off ? 'No school' : entreeOf(m), on = d === ui.date;
-  return `<div class="ftab${on ? ' on' : ''}${d === todayIso() ? ' today' : ''}${off ? ' off' : ''}${peekFrom ? ' peek' : ''}" data-act="pick-day" data-date="${d}"${peekFrom ? ` data-peek="${peekFrom}"` : ''} role="tab" tabindex="0" aria-selected="${on}" aria-label="${peekFrom ? 'Next school day, ' : ''}${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}${entree ? ': ' + esc(entree) : ''}">
+  return `<div class="ftab${on ? ' on' : ''}${d === todayIso() ? ' today' : on ? ' other' : ''}${off ? ' off' : ''}${peekFrom ? ' peek' : ''}" data-act="pick-day" data-date="${d}"${peekFrom ? ` data-peek="${peekFrom}"` : ''} role="tab" tabindex="0" aria-selected="${on}" aria-label="${peekFrom ? 'Next school day, ' : ''}${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}${entree ? ': ' + esc(entree) : ''}">
     <span class="tab-emoji" aria-hidden="true">${off ? '🏖️' : m ? dishEmojis(entree) : '·'}</span>
     <span class="tab-text">
       <span class="tab-day">${peekFrom ? '<span class="peek-lbl">Next →</span> ' : ''}${fmtDay(d, { weekday: 'short' })} <b>${parseIso(d).getDate()}</b>${todayTag(d)}</span>
@@ -400,12 +407,12 @@ function dayFolder(d) {
   const s = S(), m = s.menus[d], p = m ? plan(d) : null, entree = entreeOf(m), tips = m ? tipsFor(d) : [];
   const list = items => items.length ? items.map(i => `<li>${emo(i.name)} ${esc(i.name)}</li>`).join('') : '<li class="muted">—</li>';
   if (isDayOff(d)) return `<section class="folder off" role="tabpanel"><div class="f-main">
-      <p class="f-date">${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+      <p class="f-date">${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })} ${notTodayTag(d)}</p>
       <div class="dish-emoji" aria-hidden="true">🏖️</div><p class="entree">No school</p>
       <p class="muted">MealViewer lists this day as no school. Nothing to prepare.</p></div></section>`;
-  return `<section class="folder${d === todayIso() ? ' today' : ''}${ui.peekFrom ? ' peek' : ''}" role="tabpanel">
+  return `<section class="folder${d === todayIso() ? ' today' : ' other'}${ui.peekFrom ? ' peek' : ''}" role="tabpanel">
     <div class="f-main">
-      <p class="f-date">${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })} ${todayTag(d)}</p>
+      <p class="f-date">${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })} ${todayTag(d)}${notTodayTag(d)}</p>
       ${m ? `<div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p>${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}` : '<p class="muted">No menu yet for this day.</p>'}
       <dl class="kv">
         <div><dt>Sheets</dt><dd>${sheetsIn(d)}/${s.classes.length}</dd></div>
