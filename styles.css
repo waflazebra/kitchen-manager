@@ -103,6 +103,25 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px max(16px, env(safe-area-
 .status { display: flex; gap: 4px; flex-wrap: wrap; }
 .folder .actions { gap: 10px; margin-top: 4px; }
 
+/* Next school day tab (shown on the last school day before a weekend or break) and days off */
+.ftab.peek { border-style: dashed; background: transparent; }
+.ftab.peek.on { border-style: solid; background: var(--surface); }
+.peek-lbl { font: 700 .62rem var(--font-body); text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.ftab.off .tab-dish { font-style: italic; }
+.folder.off { grid-template-columns: 1fr; border-color: var(--line); }
+
+/* Before the weekend checklist */
+.prep { border-color: var(--warn); background: var(--warn-soft); }
+.prep-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.prep-head h3 { margin: 0; }
+.prep > p { margin: 4px 0 10px; }
+.checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.check { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--ink); cursor: pointer; }
+.check .box { flex: none; width: 20px; height: 20px; border: 2px solid var(--accent); border-radius: 5px; display: grid; place-items: center; font-size: .8rem; font-weight: 700; color: var(--accent-ink); }
+.check.done { opacity: .6; }
+.check.done .box { background: var(--accent); }
+.check.done span:last-child { text-decoration: line-through; }
+
 @media (max-width: 1000px) {
   .folder { grid-template-columns: 1fr 1fr; }
   .f-main { grid-column: 1 / -1; }

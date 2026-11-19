@@ -1,18 +1,19 @@
 // Starter kitchen tips. Each one shows up when a dish on the day's menu matches.
-// "match": phrases separated by commas. A phrase matches when every word in it appears in the dish name.
+// "match": phrases separated by commas. A phrase matches when every word in it appears in the dish name;
+// a word starting with "-" must NOT appear (e.g. "cheeseburger -macaroni").
 // Kitchens can edit or hide these and add their own on the Tips tab.
 
 const TIP_LIBRARY = [
   {
     id: 'cheeseburger',
     title: 'Cheeseburger day: cook patties plain',
-    match: 'cheese patty, cheese burger, cheeseburger',
+    match: 'cheese patty, cheese burger -macaroni -mac, cheeseburger -macaroni -mac',
     text: 'Many kids don\'t want cheese. Cook every patty plain and add a cheese slice at the line when a student asks. The cheese melts on a hot patty in about a minute. Scraping cheese off wastes time and the slice.',
   },
   {
     id: 'burger-buns',
     title: 'Keep buns from getting soggy',
-    match: 'patty, burger, sandwich roll, chicken sandwich',
+    match: 'patty, burger -macaroni -mac, sandwich roll, chicken sandwich',
     text: 'Warm buns separately and put burgers together close to serving time. A patty sitting in a closed bun gets soggy fast.',
   },
   {
@@ -78,7 +79,7 @@ const TIP_LIBRARY = [
   {
     id: 'whole-fruit',
     title: 'Slice fruit for younger kids',
-    match: 'apple, pear',
+    match: 'apple -slice, pear -slice',
     text: 'Younger kids eat more fruit when it\'s sliced than when it\'s whole. Slice apples and pears for the youngest grades, and toss apple slices in a little lemon juice or water so they don\'t brown.',
   },
   {

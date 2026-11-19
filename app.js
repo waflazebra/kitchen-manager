@@ -15,8 +15,16 @@ const addDays = (s, n) => { const d = parseIso(s); d.setDate(d.getDate() + n); r
 const monday = s => { const d = parseIso(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
 const weekdays = mon => [0, 1, 2, 3, 4].map(i => addDays(mon, i));
 const isWeekend = s => [0, 6].includes(parseIso(s).getDay());
-const nextSchoolDay = s => { while (isWeekend(s)) s = addDays(s, 1); return s; };
-const schoolDaysFrom = (s, n) => { const out = []; s = nextSchoolDay(s); while (out.length < n) { if (!isWeekend(s)) out.push(s); s = addDays(s, 1); } return out; };
+const nextWeekday = s => { while (isWeekend(s)) s = addDays(s, 1); return s; };
+// MealViewer lists a day off as a single "-NO SCHOOL-" item.
+const NO_SCHOOL = /^\W*(no school|school closed|no classes)\W*$/i;
+function isDayOff(d) {
+  const m = state && S().menus[d], items = m ? [...m.breakfast, ...m.lunch] : [];
+  return items.length > 0 && items.every(i => NO_SCHOOL.test(i.name));
+}
+const isSchoolDay = s => !isWeekend(s) && !isDayOff(s);
+const nextSchoolDay = s => { for (let i = 0; i < 60 && !isSchoolDay(s); i++) s = addDays(s, 1); return s; };
+const schoolDaysFrom = (s, n) => { const out = []; s = nextSchoolDay(s); for (let i = 0; out.length < n && i < n * 4; i++) { if (isSchoolDay(s)) out.push(s); s = addDays(s, 1); } return out; };
 const mvDate = s => { const [y, m, d] = s.split('-'); return `${m}-${d}-${y}`; };
 const fmtDay = (s, o = { weekday: 'short', month: 'short', day: 'numeric' }) => parseIso(s).toLocaleDateString('en-US', o);
 const todayIso = () => iso(new Date());
@@ -153,7 +161,7 @@ function milkShare(name, n, list) {
 }
 
 function plan(date, { forecast = false } = {}) {
-  const s = S(), m = s.menus[date], opts = options(date);
+  const s = S(), m = isDayOff(date) ? null : s.menus[date], opts = options(date);
   let tot = totals(date), source = 'counts';
   let bCount = s.counts[date]?.breakfast;
   if (forecast && !hasCounts(date)) { tot = { ...s.settings.estimate }; bCount = s.settings.estimate.breakfast; source = 'estimate'; }
@@ -219,6 +227,7 @@ function orderCalc() {
   for (const d of days) {
     if (s.served[d]) continue;
     if (!s.menus[d]) { noMenu.push(d); continue; }
+    if (isDayOff(d)) continue;
     const p = plan(d, { forecast: true });
     if (p.source === 'estimate') estDays.push(d);
     p.missing.forEach(x => missing.add(x));
@@ -282,10 +291,15 @@ function menuNote(date) {
 }
 
 function viewWeek() {
-  const s = S(), mon = monday(ui.date), days = weekdays(mon);
+  const s = S(), mon = ui.peekFrom || monday(ui.date), days = weekdays(mon);
   ensureMenus(days);
+  ensureMenus([addDays(todayIso(), 7), addDays(todayIso(), 14)]);
   const next5 = schoolDaysFrom(todayIso(), 5);
   ensureMenus(next5);
+  const today = todayIso(), nextDay = nextSchoolDay(addDays(today, 1));
+  // Last school day before a weekend or break: offer a peek at the next school day and a checklist.
+  const beforeGap = isSchoolDay(today) && nextDay !== addDays(today, 1);
+  const showPeek = beforeGap && mon === monday(today);
   const upcoming = next5.filter(d => s.menus[d] && !s.served[d]);
   const need = {}; const missing = new Set();
   for (const d of upcoming) { const p = plan(d, { forecast: true }); p.missing.forEach(x => missing.add(x)); for (const [k, v] of Object.entries(p.need)) need[k] = (need[k] || 0) + v; }
@@ -306,14 +320,15 @@ function viewWeek() {
   </section>
 
   <div class="weekhead">
-    <button class="ghost" data-act="pick-day" data-date="${addDays(ui.date, -7)}" aria-label="Previous week">‹</button>
+    <button class="ghost" data-act="pick-day" data-date="${addDays(ui.peekFrom ? addDays(mon, 4) : ui.date, -7)}" aria-label="Previous week">‹</button>
     <h2>Week of ${fmtDay(mon, { month: 'long', day: 'numeric' })}</h2>
-    <button class="ghost" data-act="pick-day" data-date="${addDays(ui.date, 7)}" aria-label="Next week">›</button>
+    <button class="ghost" data-act="pick-day" data-date="${addDays(ui.peekFrom ? addDays(mon, 4) : ui.date, 7)}" aria-label="Next week">›</button>
     ${todayButton()}
     ${menuNote(mon)}
   </div>
+  ${beforeGap && mon === monday(today) ? prepChecklist(today, nextDay) : ''}
   <div class="folders">
-    <div class="tabs" role="tablist" aria-label="Days of the week">${days.map(dayTab).join('')}</div>
+    <div class="tabs" role="tablist" aria-label="Days of the week">${days.map(d => dayTab(d)).join('')}${showPeek ? dayTab(nextDay, mon) : ''}</div>
     ${dayFolder(ui.date)}
   </div>
 
@@ -335,6 +350,30 @@ function viewWeek() {
   </div>`;
 }
 
+function prepChecklist(today, next) {
+  const s = S(), m = s.menus[next], checks = (s.prepChecks || {})[next] || {};
+  const gap = Math.round((parseIso(next) - parseIso(today)) / 86400000);
+  const title = gap > 3 ? 'Before the break' : 'Before the weekend';
+  const when = fmtDay(next, { weekday: 'long', month: 'short', day: 'numeric' });
+  if (!m) return `<section class="panel prep"><h3>${title}</h3><p class="muted">${when}'s menu isn't on MealViewer yet. Check again later today.</p></section>`;
+  const p = plan(next, { forecast: true });
+  const rows = Object.entries(p.need).map(([id, q]) => ({ it: invById(id), q })).filter(x => x.it);
+  const thaw = rows.filter(x => x.it.loc === 'Freezer');
+  const short = rows.filter(x => x.q > x.it.onHand);
+  const items = [
+    ...thaw.map(x => ({ key: 'thaw:' + x.it.id, html: `Move to the cooler to thaw: <b>${esc(x.it.name)}</b> · ${fmtQty(x.it, x.q)}` })),
+    ...short.map(x => ({ key: 'short:' + x.it.id, html: `Not enough <b>${esc(x.it.name)}</b>: need ${fmtQty(x.it, x.q)}, have ${fmtQty(x.it, x.it.onHand)}. Tell the director today.` })),
+    ...(m.changedAt ? [{ key: 'menu', html: `${when}'s menu changed on MealViewer. Check the new dishes.` }] : []),
+    ...p.missing.map(n => ({ key: 'recipe:' + norm(n), html: `<b>${esc(n)}</b> has no recipe, so it isn't in these amounts.` })),
+  ];
+  const left = items.filter(i => !checks[i.key]).length;
+  return `<section class="panel prep">
+    <div class="prep-head"><h3>${title}: get ready for ${when}</h3>${items.length && !left ? '<span class="pill ok">All set</span>' : ''}</div>
+    <p class="small muted">${emo(entreeOf(m))} ${esc(entreeOf(m))}. Amounts use a typical day from Settings, since ${when}'s sheets come in that morning.</p>
+    ${items.length ? `<ul class="checklist">${items.map(i => `<li><button class="check${checks[i.key] ? ' done' : ''}" data-act="prep-check" data-day="${next}" data-key="${esc(i.key)}" aria-pressed="${!!checks[i.key]}"><span class="box" aria-hidden="true">${checks[i.key] ? '✓' : ''}</span><span>${i.html}</span></button></li>`).join('')}</ul>` : '<p class="ok-t">Nothing to thaw and enough stock. You\'re set.</p>'}
+  </section>`;
+}
+
 function dayStatus(d) {
   const s = S(), inn = sheetsIn(d);
   if (s.served[d]) return '<span class="pill ok">Served</span>';
@@ -345,12 +384,12 @@ function dayStatus(d) {
 const entreeOf = m => m ? m.lunch.filter(i => i.type === 'ENTREES').map(i => i.name).join(' + ') : '';
 const todayTag = d => d === todayIso() ? '<span class="today-tag">Today</span>' : '';
 
-function dayTab(d) {
-  const m = S().menus[d], entree = entreeOf(m), on = d === ui.date;
-  return `<div class="ftab${on ? ' on' : ''}${d === todayIso() ? ' today' : ''}" data-act="pick-day" data-date="${d}" role="tab" tabindex="0" aria-selected="${on}" aria-label="${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}${entree ? ': ' + esc(entree) : ''}">
-    <span class="tab-emoji" aria-hidden="true">${m ? dishEmojis(entree) : '·'}</span>
+function dayTab(d, peekFrom) {
+  const m = S().menus[d], off = isDayOff(d), entree = off ? 'No school' : entreeOf(m), on = d === ui.date;
+  return `<div class="ftab${on ? ' on' : ''}${d === todayIso() ? ' today' : ''}${off ? ' off' : ''}${peekFrom ? ' peek' : ''}" data-act="pick-day" data-date="${d}"${peekFrom ? ` data-peek="${peekFrom}"` : ''} role="tab" tabindex="0" aria-selected="${on}" aria-label="${peekFrom ? 'Next school day, ' : ''}${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}${entree ? ': ' + esc(entree) : ''}">
+    <span class="tab-emoji" aria-hidden="true">${off ? '🏖️' : m ? dishEmojis(entree) : '·'}</span>
     <span class="tab-text">
-      <span class="tab-day">${fmtDay(d, { weekday: 'short' })} <b>${parseIso(d).getDate()}</b>${todayTag(d)}</span>
+      <span class="tab-day">${peekFrom ? '<span class="peek-lbl">Next →</span> ' : ''}${fmtDay(d, { weekday: 'short' })} <b>${parseIso(d).getDate()}</b>${todayTag(d)}</span>
       <span class="tab-dish">${m ? esc(entree || '—') : 'No menu yet'}</span>
     </span>
     <span class="tab-num" aria-hidden="true">${parseIso(d).getDate()}</span>
@@ -360,7 +399,11 @@ function dayTab(d) {
 function dayFolder(d) {
   const s = S(), m = s.menus[d], p = m ? plan(d) : null, entree = entreeOf(m), tips = m ? tipsFor(d) : [];
   const list = items => items.length ? items.map(i => `<li>${emo(i.name)} ${esc(i.name)}</li>`).join('') : '<li class="muted">—</li>';
-  return `<section class="folder${d === todayIso() ? ' today' : ''}" role="tabpanel">
+  if (isDayOff(d)) return `<section class="folder off" role="tabpanel"><div class="f-main">
+      <p class="f-date">${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+      <div class="dish-emoji" aria-hidden="true">🏖️</div><p class="entree">No school</p>
+      <p class="muted">MealViewer lists this day as no school. Nothing to prepare.</p></div></section>`;
+  return `<section class="folder${d === todayIso() ? ' today' : ''}${ui.peekFrom ? ' peek' : ''}" role="tabpanel">
     <div class="f-main">
       <p class="f-date">${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })} ${todayTag(d)}</p>
       ${m ? `<div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p>${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}` : '<p class="muted">No menu yet for this day.</p>'}
@@ -385,6 +428,7 @@ function viewCounts() {
   return `
   <div class="row-head"><h2>Class sheets · ${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>${menuNote(d)}</div>
   ${dayChips(d)}
+  ${isDayOff(d) ? '<p class="callout">🏖️ No school this day.</p>' : ''}
   <p class="muted">Type the circled number from each column. Leave a cell empty for zero. Totals update as you type. Tab moves across a row, the same way you read a sheet.</p>
   <div class="scroll">
   <table class="tbl grid">
@@ -406,7 +450,7 @@ function viewCounts() {
     <section class="panel future">
       <h3>Read sheets from a photo <span class="pill">Phase 2</span></h3>
       <p class="small">Take one photo per sheet (or the whole stack laid out). The system reads the grade, teacher and circled numbers, fills this table, and highlights anything it isn't sure about for you to check before saving.</p>
-      <p class="small muted">Needs a small server piece (Cloudflare Worker) to call an AI vision model. Your sheet format already reads well: printed column headings and circled totals.</p>
+      <p class="small muted">Needs a small server piece to call an AI vision model. Your sheet format already reads well: printed column headings and circled totals.</p>
     </section>
   </div>`;
 }
@@ -430,7 +474,7 @@ function viewPlan() {
   return `
   <div class="row-head"><h2>Production · ${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>${menuNote(d)}</div>
   ${dayChips(d)}
-  ${!p.hasMenu ? '<p class="panel">No menu for this day yet.</p>' : ''}
+  ${isDayOff(d) ? '<p class="callout">🏖️ No school this day.</p>' : !p.hasMenu ? '<p class="panel">No menu for this day yet.</p>' : ''}
   ${tipsPanel(d)}
   ${!hasCounts(d) ? `<p class="callout">No class sheets entered for this day. <button class="link" data-act="goto" data-tab="counts" data-date="${d}">Enter counts</button></p>` : ''}
   <section class="panel">
@@ -676,7 +720,7 @@ function viewSettings() {
 /* ---------- dish emoji ---------- */
 // First match wins, so specific names come before general ones.
 const DISH_EMOJI = [
-  ['pizza', '🍕'], ['burger', '🍔'], ['patty', '🍔'], ['hot dog', '🌭'], ['sausage', '🌭'],
+  ['no school', '🏖️'], ['pizza', '🍕'], ['macaroni', '🍝'], ['burger', '🍔'], ['patty', '🍔'], ['hot dog', '🌭'], ['sausage', '🌭'],
   ['grilled cheese', '🥪'], ['toasted cheese', '🥪'], ['sunbutter', '🥪'], ['sandwich', '🥪'], ['wrap', '🌯'],
   ['taco', '🌮'], ['burrito', '🌯'], ['nacho', '🌮'], ['quesadilla', '🌮'],
   ['tomato soup', '🍅'], ['soup', '🥣'], ['chili', '🥣'], ['stew', '🥣'],
@@ -708,7 +752,11 @@ const emo = name => `<span class="emo" aria-hidden="true">${dishEmojis(name)}</s
 const tipStore = () => (S().tips ||= { custom: [], edits: {}, hidden: {} });
 function tipMatches(match, name) {
   const n = norm(name);
-  return String(match).split(',').map(p => norm(p).split(/\s+/).filter(Boolean)).some(words => words.length && words.every(w => n.includes(w)));
+  // Each comma-separated phrase matches when all its words are in the name; a word starting with "-" must not be.
+  return String(match).split(',').map(p => norm(p).split(/\s+/).filter(Boolean)).some(words => {
+    const want = words.filter(w => !w.startsWith('-')), not = words.filter(w => w.startsWith('-') && w.length > 1).map(w => w.slice(1));
+    return want.length && want.every(w => n.includes(w)) && !not.some(w => n.includes(w));
+  });
 }
 function allTips() {
   const t = tipStore();
@@ -716,7 +764,7 @@ function allTips() {
   return [...t.custom.map(x => ({ ...x, starter: false, hidden: false })), ...starters];
 }
 function tipsFor(date) {
-  const m = S().menus[date]; if (!m) return [];
+  const m = S().menus[date]; if (!m || isDayOff(date)) return [];
   const dishes = [...m.lunch.filter(i => i.type === 'ENTREES'), ...m.lunch.filter(i => i.type !== 'ENTREES'), ...m.breakfast].map(i => i.name);
   const out = [];
   for (const tip of allTips()) {
@@ -865,8 +913,9 @@ function download(name, text, type) {
 const actions = {
   tab: el => { ui.tab = el.dataset.tab; ui.recipeEdit = null; render(); window.scrollTo(0, 0); },
   goto: el => { if (el.dataset.date) ui.date = el.dataset.date; ui.tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
-  'pick-day': el => { ui.date = nextSchoolDay(el.dataset.date); render(); },
-  'go-today': () => { ui.date = nextSchoolDay(todayIso()); render(); },
+  'pick-day': el => { ui.date = nextWeekday(el.dataset.date); ui.peekFrom = el.dataset.peek || null; render(); },
+  'go-today': () => { ui.date = nextSchoolDay(todayIso()); ui.peekFrom = null; render(); },
+  'prep-check': el => { const s = S(), c = ((s.prepChecks ||= {})[el.dataset.day] ||= {}); c[el.dataset.key] = !c[el.dataset.key]; save(); render(); },
   'reset-extra': el => { delete S().extrasOverride[ui.date][el.dataset.key]; save(); render(); },
   'mark-served': () => {
     const rows = plan(ui.date).rows.filter(r => r.make).map(r => ({
@@ -1018,7 +1067,7 @@ document.addEventListener('submit', async e => {
 /* ---------- start ---------- */
 state = load();
 try { const u = JSON.parse(localStorage.getItem(STORE_KEY + ':ui') || '{}'); if (u.tab) ui.tab = u.tab; if (u.date) ui.date = u.date; } catch (e) { }
-ui.date = nextSchoolDay(ui.date || todayIso());
+ui.date = nextWeekday(ui.date || todayIso());
 render();
 lockNow();
 
