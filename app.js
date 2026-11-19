@@ -281,7 +281,7 @@ function dayChips(active, act = 'pick-day') {
 }
 function todayButton() {
   const t = nextSchoolDay(todayIso());
-  return ui.date === t ? '' : `<button class="btn ghost today-btn" data-act="go-today">Today</button>`;
+  return ui.date === t ? '' : `<button class="btn ghost today-btn" data-act="go-today">Go To Today</button>`;
 }
 function menuNote(date) {
   const st = ui.menuStatus[monday(date)];
