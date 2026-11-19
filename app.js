@@ -264,10 +264,15 @@ const lowCount = () => S().inventory.filter(i => i.onHand < i.par).length;
 function dayChips(active, act = 'pick-day') {
   const mon = monday(active);
   return `<div class="daynav">
-    <button class="ghost" data-act="${act}" data-date="${addDays(mon, -7)}" aria-label="Previous week">‹</button>
-    ${weekdays(mon).map(d => `<button class="chip${d === active ? ' on' : ''}" data-act="${act}" data-date="${d}">${fmtDay(d, { weekday: 'short' })} <b>${parseIso(d).getDate()}</b></button>`).join('')}
-    <button class="ghost" data-act="${act}" data-date="${addDays(mon, 7)}" aria-label="Next week">›</button>
+    <button class="ghost" data-act="${act}" data-date="${addDays(active, -7)}" aria-label="Previous week">‹</button>
+    ${weekdays(mon).map(d => `<button class="chip${d === active ? ' on' : ''}${d === todayIso() ? ' is-today' : ''}" data-act="${act}" data-date="${d}">${fmtDay(d, { weekday: 'short' })} <b>${parseIso(d).getDate()}</b></button>`).join('')}
+    <button class="ghost" data-act="${act}" data-date="${addDays(active, 7)}" aria-label="Next week">›</button>
+    ${todayButton()}
   </div>`;
+}
+function todayButton() {
+  const t = nextSchoolDay(todayIso());
+  return ui.date === t ? '' : `<button class="btn ghost today-btn" data-act="go-today">Today</button>`;
 }
 function menuNote(date) {
   const st = ui.menuStatus[monday(date)];
@@ -300,29 +305,14 @@ function viewWeek() {
     ${steps.map(([t, d, k]) => `<div class="step ${k}"><span class="kind">${k === 'auto' ? 'Automatic' : 'You'}</span><strong>${t}</strong><span>${d}</span></div>`).join('<span class="arrow" aria-hidden="true">→</span>')}
   </section>
 
-  <div class="row-head"><h2>Week of ${fmtDay(mon, { month: 'long', day: 'numeric' })}</h2>${menuNote(mon)}</div>
-  ${dayChips(ui.date, 'week-nav')}
-  <div class="days">
-    ${days.map(d => {
-      const m = s.menus[d], p = m ? plan(d) : null, inn = sheetsIn(d), served = s.served[d];
-      const entree = m ? m.lunch.filter(i => i.type === 'ENTREES').map(i => i.name).join(' + ') : '';
-      return `<article class="day${d === todayIso() ? ' today' : ''}">
-        <header><span class="dname">${fmtDay(d, { weekday: 'long' })}</span><span class="ddate">${fmtDay(d, { month: 'short', day: 'numeric' })}</span></header>
-        ${m ? `<div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p>${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}` : '<p class="muted">No menu yet</p>'}
-        <dl class="kv">
-          <div><dt>Sheets</dt><dd>${inn}/${s.classes.length}</dd></div>
-          <div><dt>Lunches</dt><dd>${p && p.lunchTotal ? `${p.lunchTotal} <small>+${p.lunchMake - p.lunchTotal}</small>` : '—'}</dd></div>
-          <div><dt>Breakfast</dt><dd>${p && p.bCount ? p.bCount : '—'}</dd></div>
-        </dl>
-        <div class="status">
-          ${served ? '<span class="pill ok">Served</span>' : inn === s.classes.length ? '<span class="pill ok">Counts done</span>' : inn ? '<span class="pill warn">Counts partial</span>' : '<span class="pill">Waiting on sheets</span>'}
-          ${p && p.missing.length ? `<span class="pill warn">${p.missing.length} need recipe</span>` : ''}
-          ${m && tipsFor(d).length ? `<button class="pill tip" data-act="goto" data-tab="plan" data-date="${d}">${tipsFor(d).length} tip${tipsFor(d).length > 1 ? 's' : ''}</button>` : ''}
-        </div>
-        <div class="actions"><button class="link" data-act="goto" data-tab="counts" data-date="${d}">Counts</button><button class="link" data-act="goto" data-tab="plan" data-date="${d}">Production</button></div>
-      </article>`;
-    }).join('')}
+  <div class="weekhead">
+    <button class="ghost" data-act="pick-day" data-date="${addDays(ui.date, -7)}" aria-label="Previous week">‹</button>
+    <h2>Week of ${fmtDay(mon, { month: 'long', day: 'numeric' })}</h2>
+    <button class="ghost" data-act="pick-day" data-date="${addDays(ui.date, 7)}" aria-label="Next week">›</button>
+    ${todayButton()}
+    ${menuNote(mon)}
   </div>
+  <div class="days">${days.map(d => d === ui.date ? dayCardOpen(d) : dayCardSmall(d)).join('')}</div>
 
   <div class="two">
     <section class="panel">
@@ -340,6 +330,48 @@ function viewWeek() {
       ${missing.size ? `<ul class="plain">${[...missing].map(n => `<li><button class="link" data-act="edit-recipe" data-name="${esc(n)}">${esc(n)}</button></li>`).join('')}</ul>` : '<p class="ok-t">Every dish this week has a recipe.</p>'}
     </section>
   </div>`;
+}
+
+function dayStatus(d) {
+  const s = S(), inn = sheetsIn(d);
+  if (s.served[d]) return '<span class="pill ok">Served</span>';
+  if (inn === s.classes.length) return '<span class="pill ok">Counts done</span>';
+  if (inn) return '<span class="pill warn">Counts partial</span>';
+  return '<span class="pill">Waiting on sheets</span>';
+}
+const entreeOf = m => m ? m.lunch.filter(i => i.type === 'ENTREES').map(i => i.name).join(' + ') : '';
+const todayTag = d => d === todayIso() ? '<span class="today-tag">Today</span>' : '';
+
+function dayCardSmall(d) {
+  const m = S().menus[d], entree = entreeOf(m);
+  return `<article class="day small${d === todayIso() ? ' today' : ''}" data-act="pick-day" data-date="${d}" role="button" tabindex="0" aria-label="Open ${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}">
+    <header><span class="dname">${fmtDay(d, { weekday: 'short' })} ${parseIso(d).getDate()}</span>${todayTag(d)}</header>
+    ${m ? `<div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p>` : '<p class="muted entree">No menu yet</p>'}
+    <div class="status">${dayStatus(d)}</div>
+  </article>`;
+}
+
+function dayCardOpen(d) {
+  const s = S(), m = s.menus[d], p = m ? plan(d) : null, entree = entreeOf(m), tips = m ? tipsFor(d) : [];
+  const list = items => items.map(i => `<li>${emo(i.name)} ${esc(i.name)}</li>`).join('');
+  const sides = m ? m.lunch.filter(i => i.type !== 'ENTREES') : [];
+  return `<article class="day open${d === todayIso() ? ' today' : ''}">
+    <header><span class="dname">${fmtDay(d, { weekday: 'long' })}</span><span class="ddate">${fmtDay(d, { month: 'short', day: 'numeric' })}</span>${todayTag(d)}</header>
+    ${m ? `<div class="openmain"><div class="dish-emoji" aria-hidden="true">${dishEmojis(entree)}</div><p class="entree">${esc(entree || '—')}</p></div>
+      ${m.changedAt ? '<span class="pill warn">Menu changed</span>' : ''}
+      <div class="menus">
+        <div><h4>Lunch</h4><ul class="menu-list">${list(sides)}</ul></div>
+        <div><h4>Breakfast</h4><ul class="menu-list">${list(m.breakfast)}</ul></div>
+      </div>` : '<p class="muted">No menu yet</p>'}
+    <dl class="kv">
+      <div><dt>Sheets</dt><dd>${sheetsIn(d)}/${s.classes.length}</dd></div>
+      <div><dt>Lunches</dt><dd>${p && p.lunchTotal ? `${p.lunchTotal} <small>+${p.lunchMake - p.lunchTotal}</small>` : '—'}</dd></div>
+      <div><dt>Breakfast</dt><dd>${p && p.bCount ? p.bCount : '—'}</dd></div>
+    </dl>
+    <div class="status">${dayStatus(d)}${p && p.missing.length ? `<span class="pill warn">${p.missing.length} need recipe</span>` : ''}</div>
+    ${tips.length ? `<div class="daytips"><h4>Tips</h4><ul>${tips.map(t => `<li><button class="link" data-act="goto" data-tab="plan" data-date="${d}">${esc(t.title)}</button></li>`).join('')}</ul></div>` : ''}
+    <div class="actions"><button class="btn" data-act="goto" data-tab="counts" data-date="${d}">Counts</button><button class="btn ghost" data-act="goto" data-tab="plan" data-date="${d}">Production</button></div>
+  </article>`;
 }
 
 function viewCounts() {
@@ -830,7 +862,7 @@ const actions = {
   tab: el => { ui.tab = el.dataset.tab; ui.recipeEdit = null; render(); window.scrollTo(0, 0); },
   goto: el => { if (el.dataset.date) ui.date = el.dataset.date; ui.tab = el.dataset.tab; render(); window.scrollTo(0, 0); },
   'pick-day': el => { ui.date = nextSchoolDay(el.dataset.date); render(); },
-  'week-nav': el => { ui.date = nextSchoolDay(el.dataset.date); render(); },
+  'go-today': () => { ui.date = nextSchoolDay(todayIso()); render(); },
   'reset-extra': el => { delete S().extrasOverride[ui.date][el.dataset.key]; save(); render(); },
   'mark-served': () => {
     const rows = plan(ui.date).rows.filter(r => r.make).map(r => ({
@@ -986,6 +1018,9 @@ ui.date = nextSchoolDay(ui.date || todayIso());
 render();
 lockNow();
 
+document.addEventListener('keydown', e => {
+  if (!lock.locked && (e.key === 'Enter' || e.key === ' ') && e.target.matches?.('[role="button"][data-act]')) { e.preventDefault(); e.target.click(); }
+});
 document.addEventListener('keydown', e => {
   if (!lock.locked || e.target.closest?.('input')) return;
   if (/^\d$/.test(e.key)) { e.preventDefault(); pinKey(e.key); }

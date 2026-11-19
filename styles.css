@@ -67,18 +67,62 @@ main { max-width: 1180px; margin: 0 auto; padding: 20px max(16px, env(safe-area-
 .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 20px; padding: 5px 12px; cursor: pointer; font: inherit; }
 .chip b { font-weight: 700; }
 .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.days { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.weekhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.today-btn { padding: 4px 12px; font-size: .9rem; }
+.chip.is-today:not(.on) { border-color: var(--accent); }
+.today-tag { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--accent-ink); background: var(--accent); padding: 1px 7px; border-radius: 4px; }
+
+/* Week cards: the selected day opens wide (2 of 6 columns); the other four stay compact. */
+.days { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .day { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .day.today { border-color: var(--accent); box-shadow: inset 0 3px 0 var(--accent); }
-.day header { display: flex; justify-content: space-between; align-items: baseline; }
+.day header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .dname { font: 600 1.2rem var(--font-display); }
 .ddate { color: var(--muted); font-size: .85rem; }
-.entree { margin: 0; font-weight: 700; min-height: 2.9em; }
+.day header .today-tag { margin-left: auto; }
+.entree { margin: 0; font-weight: 700; }
+
+.day.small { cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+.day.small:hover { border-color: var(--accent); transform: translateY(-2px); }
+.day.small:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.day.small .dish-emoji { font-size: 1.9rem; }
+.day.small .entree { font-size: .9rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+.day.open { grid-column: span 2; padding: 18px; border-width: 2px; border-color: var(--accent); }
+.day.open .dname { font-size: 1.5rem; }
+.openmain { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.openmain .dish-emoji { white-space: nowrap; flex-shrink: 0; }
+.openmain .entree { min-width: 0; }
+.day.open .dish-emoji { font-size: 3rem; }
+.day.open .entree { font-size: 1.15rem; }
+.menus { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.day h4 { margin: 0 0 4px; font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.menu-list, .daytips ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: .9rem; }
 .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0; }
 .kv dt { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
 .kv dd { margin: 0; font-weight: 700; font-size: 1.05rem; }
 .kv small { color: var(--muted); font-weight: 400; }
 .status { display: flex; gap: 4px; flex-wrap: wrap; }
+.day.open .actions { gap: 10px; }
+
+/* Medium screens: compact cards share one row, the open card sits below at full width. */
+@media (max-width: 1000px) {
+  .days { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: dense; }
+  .day.open { grid-column: 1 / -1; }
+}
+/* Phones: one column; compact cards become single rows. */
+@media (max-width: 640px) {
+  .days { grid-template-columns: minmax(0, 1fr); }
+  .day.small { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "emo name head" "emo name status"; align-items: center; column-gap: 12px; row-gap: 2px; padding: 10px 12px; }
+  .day.small header { grid-area: head; justify-self: end; }
+  .day.small .dish-emoji { grid-area: emo; font-size: 1.6rem; }
+  .day.small .entree { grid-area: name; -webkit-line-clamp: 2; }
+  .day.small .status { grid-area: status; justify-self: end; }
+  .day.small .dname { font-size: 1rem; }
+  .menus { grid-template-columns: 1fr; }
+  .day.open { padding: 14px; }
+  .day.open .dish-emoji { font-size: 2.2rem; }
+}
 .actions { display: flex; gap: 14px; margin-top: auto; }
 
 /* tables */
