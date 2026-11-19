@@ -246,7 +246,7 @@ function orderText(o) {
 }
 
 /* ---------- rendering ---------- */
-const TABS = [['week', 'This week'], ['counts', 'Counts'], ['plan', 'Production'], ['inventory', 'Inventory'], ['order', 'Order request'], ['recipes', 'Recipes'], ['settings', 'Settings']];
+const TABS = [['week', 'This week'], ['counts', 'Counts'], ['plan', 'Production'], ['inventory', 'Inventory'], ['order', 'Order request'], ['recipes', 'Recipes'], ['tips', 'Tips'], ['settings', 'Settings']];
 
 function render() {
   const s = S();
@@ -255,7 +255,7 @@ function render() {
   document.getElementById('lock-btn').hidden = !state.pin;
   document.getElementById('nav').innerHTML = TABS.map(([k, l]) => `<button class="tab${ui.tab === k ? ' on' : ''}" data-act="tab" data-tab="${k}">${l}${k === 'inventory' && lowCount() ? ` <span class="badge">${lowCount()}</span>` : ''}</button>`).join('');
   const view = document.getElementById('view');
-  const fns = { week: viewWeek, counts: viewCounts, plan: viewPlan, inventory: viewInventory, order: viewOrder, recipes: viewRecipes, settings: viewSettings };
+  const fns = { week: viewWeek, counts: viewCounts, plan: viewPlan, inventory: viewInventory, order: viewOrder, recipes: viewRecipes, tips: viewTips, settings: viewSettings };
   view.innerHTML = fns[ui.tab]();
   try { localStorage.setItem(STORE_KEY + ':ui', JSON.stringify({ tab: ui.tab, date: ui.date })); } catch (e) { }
 }
@@ -317,6 +317,7 @@ function viewWeek() {
         <div class="status">
           ${served ? '<span class="pill ok">Served</span>' : inn === s.classes.length ? '<span class="pill ok">Counts done</span>' : inn ? '<span class="pill warn">Counts partial</span>' : '<span class="pill">Waiting on sheets</span>'}
           ${p && p.missing.length ? `<span class="pill warn">${p.missing.length} need recipe</span>` : ''}
+          ${m && tipsFor(d).length ? `<button class="pill tip" data-act="goto" data-tab="plan" data-date="${d}">${tipsFor(d).length} tip${tipsFor(d).length > 1 ? 's' : ''}</button>` : ''}
         </div>
         <div class="actions"><button class="link" data-act="goto" data-tab="counts" data-date="${d}">Counts</button><button class="link" data-act="goto" data-tab="plan" data-date="${d}">Production</button></div>
       </article>`;
@@ -394,6 +395,7 @@ function viewPlan() {
   <div class="row-head"><h2>Production · ${fmtDay(d, { weekday: 'long', month: 'long', day: 'numeric' })}</h2>${menuNote(d)}</div>
   ${dayChips(d)}
   ${!p.hasMenu ? '<p class="panel">No menu for this day yet.</p>' : ''}
+  ${tipsPanel(d)}
   ${!hasCounts(d) ? `<p class="callout">No class sheets entered for this day. <button class="link" data-act="goto" data-tab="counts" data-date="${d}">Enter counts</button></p>` : ''}
   <section class="panel">
     <h3>How many to make</h3>
@@ -635,6 +637,70 @@ function viewSettings() {
   </section>`;
 }
 
+/* ---------- kitchen tips ---------- */
+// Starter tips come from tips.js; each kitchen can edit, hide or add its own (stored per school).
+const tipStore = () => (S().tips ||= { custom: [], edits: {}, hidden: {} });
+function tipMatches(match, name) {
+  const n = norm(name);
+  return String(match).split(',').map(p => norm(p).split(/\s+/).filter(Boolean)).some(words => words.length && words.every(w => n.includes(w)));
+}
+function allTips() {
+  const t = tipStore();
+  const starters = TIP_LIBRARY.map(x => ({ ...x, ...(t.edits[x.id] || {}), starter: true, edited: !!t.edits[x.id], hidden: !!t.hidden[x.id] }));
+  return [...t.custom.map(x => ({ ...x, starter: false, hidden: false })), ...starters];
+}
+function tipsFor(date) {
+  const m = S().menus[date]; if (!m) return [];
+  const dishes = [...m.lunch.filter(i => i.type === 'ENTREES'), ...m.lunch.filter(i => i.type !== 'ENTREES'), ...m.breakfast].map(i => i.name);
+  const out = [];
+  for (const tip of allTips()) {
+    if (tip.hidden) continue;
+    const dish = dishes.find(d => tipMatches(tip.match, d));
+    if (dish) out.push({ ...tip, dish });
+  }
+  return out.sort((a, b) => dishes.indexOf(a.dish) - dishes.indexOf(b.dish));
+}
+function tipsPanel(date) {
+  const tips = tipsFor(date);
+  if (!tips.length) return '';
+  return `<section class="panel tips">
+    <h3>Heads-up for today</h3>
+    ${tips.map(t => `<div class="tipitem">
+      <p class="tiphead"><b>${esc(t.title)}</b> <span class="small muted">· ${esc(t.dish)}</span></p>
+      <p>${esc(t.text)}</p>
+      <div class="tipacts"><button class="link small" data-act="tip-edit" data-id="${esc(t.id)}">Edit</button>${t.starter ? `<button class="link small" data-act="tip-hide" data-id="${esc(t.id)}">Hide for our kitchen</button>` : ''}</div>
+    </div>`).join('')}
+  </section>`;
+}
+
+function viewTips() {
+  const tips = allTips(), ed = ui.tipEdit, today = todayIso();
+  const upcoming = Object.keys(S().menus).filter(d => d >= today).sort();
+  const nextFor = t => upcoming.find(d => Object.values(S().menus[d]).flat().some(i => tipMatches(t.match, i.name)));
+  const row = t => { const nx = nextFor(t); return `<article class="tipitem ${t.hidden ? 'off' : ''}">
+    <p class="tiphead"><b>${esc(t.title)}</b> ${t.starter ? `<span class="pill">${t.edited ? 'Starter, edited' : 'Starter'}</span>` : '<span class="pill ok">Ours</span>'} ${t.hidden ? '<span class="pill warn">Hidden</span>' : ''}</p>
+    <p>${esc(t.text)}</p>
+    <p class="small muted">Shows when a dish name has: ${esc(t.match)}${nx ? ` · next: ${fmtDay(nx)}` : ''}</p>
+    <div class="tipacts"><button class="link small" data-act="tip-edit" data-id="${esc(t.id)}">Edit</button>
+      ${t.starter ? (t.hidden ? `<button class="link small" data-act="tip-unhide" data-id="${esc(t.id)}">Show again</button>` : `<button class="link small" data-act="tip-hide" data-id="${esc(t.id)}">Hide</button>`) : ''}</div>
+  </article>`; };
+  return `
+  <div class="row-head"><h2>Kitchen tips</h2><span class="muted">${tips.filter(t => !t.hidden).length} active</span></div>
+  <p class="muted">Tips show up on the Production page when a matching dish is on the menu. Starter tips are general good practice. Edit them to fit your kitchen and add what you learn.</p>
+  <div><button class="btn" data-act="tip-new">+ Add a tip</button></div>
+  ${ed ? `<section class="panel editor"><h3>${ed.id ? 'Edit tip' : 'New tip'}</h3>
+    <form data-form="tip">
+      <label class="field"><span>Title</span><input id="tip-title" required value="${esc(ed.title)}"></label>
+      <label class="field"><span>Show when the dish name has (separate with commas)</span><input id="tip-match" required value="${esc(ed.match)}" placeholder="cheese patty, cheeseburger"></label>
+      <label class="field"><span>Tip</span><textarea id="tip-text" rows="3" required>${esc(ed.text)}</textarea></label>
+      <div class="formrow"><button class="btn">Save tip</button><button type="button" class="btn ghost" data-act="tip-cancel">Cancel</button>
+        ${ed.starter && ed.edited ? '<button type="button" class="link small" data-act="tip-reset">Go back to the starter wording</button>' : ''}
+        ${ed.id && !ed.starter ? '<button type="button" class="link small" data-act="tip-delete">Delete tip</button>' : ''}</div>
+    </form></section>` : ''}
+  <div class="tiplist">${tips.filter(t => !t.hidden).map(row).join('')}</div>
+  ${tips.some(t => t.hidden) ? `<h3>Hidden</h3><div class="tiplist">${tips.filter(t => t.hidden).map(row).join('')}</div>` : ''}`;
+}
+
 /* ---------- PIN lock ---------- */
 // A simple lock against accidental changes at a shared computer. Not real security: the data itself isn't encrypted.
 const lock = { locked: false, entry: '', fails: 0, waitUntil: 0, last: Date.now(), msg: '', resetStep: false };
@@ -755,6 +821,13 @@ const actions = {
   'ri-add': () => { ui.recipeEdit.ingredients.push({ inv: '', qty: 1 }); render(); },
   'ri-del': el => { ui.recipeEdit.ingredients.splice(+el.dataset.i, 1); render(); },
   'ri-cancel': () => { ui.recipeEdit = null; render(); },
+  'tip-new': () => { ui.tipEdit = { title: '', match: '', text: '' }; ui.tab = 'tips'; render(); window.scrollTo(0, 0); },
+  'tip-edit': el => { const t = allTips().find(x => x.id === el.dataset.id); ui.tipEdit = { ...t }; ui.tab = 'tips'; render(); window.scrollTo(0, 0); },
+  'tip-cancel': () => { ui.tipEdit = null; render(); },
+  'tip-hide': el => { tipStore().hidden[el.dataset.id] = true; save(); toast('Tip hidden. Show it again from the Tips tab.'); render(); },
+  'tip-unhide': el => { delete tipStore().hidden[el.dataset.id]; save(); render(); },
+  'tip-reset': () => { delete tipStore().edits[ui.tipEdit.id]; ui.tipEdit = null; save(); toast('Back to the starter wording'); render(); },
+  'tip-delete': () => { const t = tipStore(); t.custom = t.custom.filter(x => x.id !== ui.tipEdit.id); ui.tipEdit = null; save(); toast('Tip deleted'); render(); },
   'ri-delete': () => { delete S().recipes[norm(ui.recipeEdit.name)]; ui.recipeEdit = null; save(); toast('Recipe deleted'); render(); },
   'copy-order': () => {
     const ta = document.getElementById('order-text');
@@ -863,6 +936,12 @@ document.addEventListener('submit', async e => {
     s.inventory.push({ id, name: v('ni-name').trim(), loc: v('ni-loc'), unit: v('ni-unit').trim(), packName: v('ni-pack').trim() || '', packSize: +v('ni-packsize') || 0, par: +v('ni-par') || 0, onHand: 0 });
     const oh = +v('ni-onhand'); if (oh) logTx(id, 'count', oh, 'Starting count');
     ui.invAction = null; save(); toast('Item added'); render();
+  } else if (f === 'tip') {
+    const ed = ui.tipEdit, t = tipStore(), vals = { title: v('tip-title').trim(), match: v('tip-match').trim(), text: v('tip-text').trim() };
+    if (ed.starter) t.edits[ed.id] = vals;
+    else if (ed.id) Object.assign(t.custom.find(x => x.id === ed.id), vals);
+    else t.custom.unshift({ id: 'tip-' + uid(), ...vals });
+    ui.tipEdit = null; save(); toast('Tip saved'); render();
   } else if (f === 'recipe') {
     const ed = ui.recipeEdit;
     ed.ingredients = ed.ingredients.filter(g => g.inv && g.qty > 0);

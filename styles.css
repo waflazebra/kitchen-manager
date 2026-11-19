@@ -131,6 +131,17 @@ button.pill { cursor: pointer; }
 
 #toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; z-index: 20; max-width: calc(100% - 32px); }
 
+/* tips */
+.pill.tip { background: var(--accent-soft); color: var(--accent); }
+.panel.tips { border-color: var(--accent); background: var(--accent-soft); }
+.tips .tipitem + .tipitem { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+.tipitem p { margin: 0 0 4px; max-width: 70ch; }
+.tiphead { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.tipacts { display: flex; gap: 14px; }
+.tiplist { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.tiplist .tipitem { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 4px; }
+.tiplist .tipitem.off { opacity: .65; }
+
 /* PIN lock */
 .lockbtn { margin-left: auto; }
 body.locked .top, body.locked main { display: none; }
